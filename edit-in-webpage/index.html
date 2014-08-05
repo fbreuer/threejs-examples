@@ -11,7 +11,8 @@
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/4.4.0/codemirror.min.css"></link>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/4.4.0/codemirror.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/4.4.0/mode/coffeescript/coffeescript.js"></script>    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/4.4.0/mode/coffeescript/coffeescript.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/4.4.0/mode/xml/xml.js"></script>
     <style>
       body {
         margin: 3em;
@@ -96,7 +97,6 @@ gcd_geometry = (boxsize=10) ->
     for b in [1..M]
       S.push(canonicalize(a,b))
   S = remove_duplicates(S)
-  console.log(S)
   pair2line = (p,q) ->
     l = Math.min(M/p,M/q)
     [g,depth] = gcd(p,q)
@@ -237,8 +237,6 @@ render()
 
       var run = function() {
         var page_string = page_beginning + editor.getDoc().getValue() + page_end;
-        //$("#viz").contents().find("html").html(page_string);
-        console.log(page_string);
         $("#viz")[0].contentWindow.document.open("text/htmlreplace");
         $("#viz")[0].contentWindow.document.write(page_string);
         $("#viz")[0].contentWindow.document.close();
