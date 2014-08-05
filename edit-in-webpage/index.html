@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Interactive SVG Snapshot from Three.js Visualization</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css"></link>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/4.4.0/codemirror.min.css"></link>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/4.4.0/codemirror.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/4.4.0/mode/coffeescript/coffeescript.js"></script>    
+    <style>
+      body {
+        margin: 3em;
+      }
+      iframe {
+        border: 1px solid black;
+        width: 100%;
+        height: 25em;
+      }
+      .CodeMirror {
+        border: 1px solid black; 
+        font-size:13px;
+      }
+    </style>
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+
+
+
+    <h1>Visualization</h1>
+    <iframe id="viz"></iframe>
+
+    <p><a class="btn btn-primary" role="button" onclick="snap()">Snap!</a></p>
+
+    <h1>Snapshot</h1>
+
+    <ul class="nav nav-tabs" role="tablist" id="snap-tabs">
+      <li class="active"><a href="#snap-pane" role="tab" data-toggle="tab">SVG Image</a></li>
+      <li><a href="#output-pane" role="tab" data-toggle="tab">SVG Source</a></li>
+    </ul>
+
+    <div class="tab-content">
+      <div class="tab-pane active" id="snap-pane"><iframe id="snap"></iframe></div>
+      <div class="tab-pane" id="output-pane"><textarea id="output"></textarea></div>
+    </div>
+
+    <script type="text/javascript">
+      $('#snap-tabs a').click(function (e) {
+        e.preventDefault()
+        $(this).tab('show')
+      });
+      $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+        output_editor.refresh();
+      })
+    </script>
+
+    <h1>Editor</h1>
+    <textarea id="source">
+
+# The Mathematics
+
+gcd = (a,b,depth=0) -> 
+  switch
+    when a > b  then gcd(a-b,b,depth+1)
+    when a < b  then gcd(a,b-a,depth+1)
+    when a == b then [a, depth]
+    else "error"
+
+canonicalize = (a,b) ->
+  [g,d] = gcd(a,b)
+  [a/g, b/g]
+
+
+# Helper Functions for Creating Three.js Objects
+
+remove_duplicates = (arr) ->
+  output = {}
+  output[arr[key]] = arr[key] for key in [0...arr.length]
+  value for key, value of output
+
+gcd_geometry = (boxsize=10) ->
+  M = boxsize
+  S = []
+  for a in [1..M]
+    for b in [1..M]
+      S.push(canonicalize(a,b))
+  S = remove_duplicates(S)
+  console.log(S)
+  pair2line = (p,q) ->
+    l = Math.min(M/p,M/q)
+    [g,depth] = gcd(p,q)
+    { from: [p,q,1], to: [l*p,l*q,l], color: depth/M }          
+  ( pair2line(p,q) for [p,q] in S )
+
+drawline = (from,to,material) ->
+  geometry = new THREE.Geometry()
+  geometry.vertices[0] = new THREE.Vector3( from[0], from[1], from[2] )
+  geometry.vertices[1] = new THREE.Vector3( to[0], to[1], to[2] )
+  new THREE.Line(geometry, material, THREE.LineStrip)
+
+drawcube = (M,material) ->
+  group = new THREE.Object3D()
+  group.add(drawline(a,b,material)) for [a,b] in [ 
+    [[0,0,0], [M,0,0]], 
+    [[0,0,0], [0,M,0]],
+    [[0,0,0], [0,0,M]],
+    [[M,0,0], [M,0,M]],
+    [[M,0,0], [M,M,0]],
+    [[0,M,0], [0,M,M]],
+    [[0,M,0], [M,M,0]],
+    [[0,0,M], [M,0,M]],
+    [[0,0,M], [0,M,M]],
+    [[M,M,0], [M,M,M]],
+    [[0,M,M], [M,M,M]],
+    [[M,0,M], [M,M,M]] ]
+  group
+
+
+# Setup Three.js
+
+init = (boxsize) ->
+  renderer = new THREE.SVGRenderer()
+  renderer.setSize( window.innerWidth, window.innerHeight )
+  document.body.appendChild( renderer.domElement )
+
+  alpha = 1
+  aspect = window.innerWidth / window.innerHeight
+
+  camera = new THREE.PerspectiveCamera( 25, window.innerWidth / window.innerHeight, 1, 1000 )
+  #camera = new THREE.OrthographicCamera( -alpha*boxsize*aspect, alpha*boxsize*aspect, alpha*boxsize, -alpha*boxsize, 1, 1000 );
+
+  camera.position.z = 50
+
+  scene = new THREE.Scene()
+
+  group = new THREE.Object3D()
+
+  group.add(drawcube(boxsize, new THREE.LineBasicMaterial( { color: 0x000000, linewidth: 2} )))
+
+  for line in gcd_geometry(boxsize)
+    color = new THREE.Color()
+    color.setHSL(line.color, 0.8, 0.4)
+    material = new THREE.LineBasicMaterial( { color: color, dashSize: 3, gapSize: 1, linewidth: 2} )
+    group.add(drawline(line.from,line.to,material))
+
+  scene.add(group)
+
+  group.rotation.x = 3.1415 * (- 0.5 )
+  group.position.x = -5
+  group.position.y = -5
+
+  render = () ->
+    renderer.render( scene, camera )
+
+  controls = new THREE.OrbitControls( camera )
+  controls.addEventListener( 'change', render )
+
+  ## Code for creating snapshots of SVG image
+  snap = () ->
+    XMLS = new XMLSerializer()
+    svgfile = XMLS.serializeToString(renderer.domElement)
+    return svgfile
+
+  [render,snap]
+
+
+# Main
+
+[render,snap] = init(10)
+
+## Export snap as we are going to call it externally
+window.snap = snap
+
+render()
+
+    </textarea>
+
+    <p><a class="btn btn-primary" role="button" onclick="run()">Run!</a></p>
+
+    <script type="text/javascript">
+      var editor = CodeMirror.fromTextArea($("#source")[0], {
+        mode: "text/x-coffeescript",
+        lineNumbers: true,
+        styleActiveLine: true,
+        matchBrackets: true,
+        lineWrapping: true
+      });
+
+      var output_editor = CodeMirror.fromTextArea($("#output")[0], {
+        mode: "application/xml",
+        lineNumbers: true,
+        styleActiveLine: true,
+        matchBrackets: true,
+        lineWrapping: true
+      });
+    </script>
+
+
+    <script type="text/javascript">
+      var page_beginning = ['<!DOCTYPE html>',
+        '<html>',
+        '  <head>',
+        '    <meta charset="utf-8">',
+        '    <style> body { background-color: #ffffff; margin: 0; overflow: hidden; } </style>',
+        '  </head>',
+        '  <body>',
+        '    <script src="http://cdnjs.cloudflare.com/ajax/libs/three.js/r68/three.min.js"><\/script>',
+        '    <script src="https://cdn.rawgit.com/mrdoob/three.js/r68/examples/js/renderers/SVGRenderer.js"><\/script>',
+        '    <script src="https://cdn.rawgit.com/mrdoob/three.js/r68/examples/js/controls/OrbitControls.js"><\/script>',
+        '    <script type="text/coffeescript">'].join("\n");
+
+      var page_end = 
+        ['<\/script>',
+         '    <script src="http:///cdnjs.cloudflare.com/ajax/libs/coffee-script/1.7.1/coffee-script.min.js"><\/script>',
+         '  </body>',
+         '</html>'].join("\n");
+
+      var snap = function() {
+        result = $("#viz")[0].contentWindow.snap();
+        $("#snap")[0].contentWindow.document.open("text/htmlreplace");
+        $("#snap")[0].contentWindow.document.write(result);
+        $("#snap")[0].contentWindow.document.close();
+        output_editor.getDoc().setValue(result);
+        output_editor.refresh();
+      }
+
+      var run = function() {
+        var page_string = page_beginning + editor.getDoc().getValue() + page_end;
+        //$("#viz").contents().find("html").html(page_string);
+        console.log(page_string);
+        $("#viz")[0].contentWindow.document.open("text/htmlreplace");
+        $("#viz")[0].contentWindow.document.write(page_string);
+        $("#viz")[0].contentWindow.document.close();
+      }
+
+      run();
+    </script>
+  </body>
+</html>
